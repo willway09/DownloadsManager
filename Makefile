@@ -18,10 +18,10 @@ IMGUI_FREETYPE_SRC = $(addsuffix .cpp, $(addprefix ${IMGUI_DIR}misc/freetype/, $
 IMGUI_FREETYPE_OBJ = $(addsuffix .o, $(addprefix ${OBJ}, ${IMGUI_FREETYPE_NAME}))
 
 CXX=g++
-CPPFLAGS = -I${IMGUI_DIR} -I${IMGUI_DIR}backends/ -I/usr/include/freetype2 -g -DIMGUI_USE_WCHAR32 -DIMGUI_ENABLE_FREETYPE
+CPPFLAGS = -I${IMGUI_DIR} -I${IMGUI_DIR}backends/ -I/usr/include/freetype2 -I/usr/include/julia -g -DIMGUI_USE_WCHAR32 -DIMGUI_ENABLE_FREETYPE
 
 main: main.cpp lib/libimgui.a lib/libglfw3.a
-	$(CXX) $(CPPFLAGS) -o $@ $< lib/libimgui.a lib/libglfw3.a -lGL -lfreetype
+	$(CXX) $(CPPFLAGS) -o $@ $< lib/libimgui.a lib/libglfw3.a -lGL -lfreetype -ljulia -pthread
 
 # Only build if not already built
 lib/libimgui.a: ${OBJ} ${LIB} ${IMGUI_OBJ} ${IMGUI_BACKENDS_OBJ} ${IMGUI_FREETYPE_OBJ}

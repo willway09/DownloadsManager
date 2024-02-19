@@ -3,23 +3,59 @@
 #include "imgui_impl_opengl2.h"
 #include "imgui/misc/freetype/imgui_freetype.h"
 #include <stdio.h>
+#include <cstdio>
 #include <GLFW/glfw3.h>
+#include <pthread.h>
 
 #include <string>
 #include <iostream>
+#include <queue>
 
-static void glfw_error_callback(int error, const char* description)
-{
+#include <julia.h>
+
+static void glfw_error_callback(int error, const char* description) {
 	fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-// Main code
-int main(int, char**)
-{
-	glfwSetErrorCallback(glfw_error_callback);
-	if (!glfwInit())
-		return 1;
+void watcher_thread_cleanup(void*) {
+	// Cleanup julia
+	jl_atexit_hook(0);
+	std::cout << "Cleaned up Julia" << std::endl;
+}
 
+std::queue<std::string> filenames;
+pthread_mutex_t filenames_mutex;
+
+void* watcher_thread(void*) {
+	jl_init();
+
+	jl_eval_string("include(\"watcher.jl\")");
+
+	jl_function_t* get_next_download = jl_get_function(jl_main_module, "get_next_download");
+
+	if(get_next_download == 0) {
+		std::cerr << "Could not get get_next_download function pointer" << std::endl;
+		std::exit(-1);
+	}
+
+	pthread_cleanup_push(watcher_thread_cleanup, nullptr);
+
+	while(true) {
+		pthread_testcancel();
+		jl_array_t* filename_arr = (jl_array_t*)jl_call0(get_next_download);
+		std::string filename = (char*)jl_array_data(filename_arr);
+
+		pthread_mutex_lock(&filenames_mutex);
+		filenames.push(filename);
+		pthread_mutex_unlock(&filenames_mutex);
+	}
+
+	pthread_cleanup_pop(0);
+
+	return nullptr;
+};
+
+int get_file_duration(std::string filename) {
 	// Create window with graphics context
 	GLFWwindow* window = glfwCreateWindow(1280, 720, "Downloads Manager", nullptr, nullptr);
 	if (window == nullptr)
@@ -80,9 +116,7 @@ int main(int, char**)
 
 		ImGui::Begin("Downloads Manager", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 
-		std::string temp = "file.txt";
-
-		std::string text = "How long should  " + temp + " be kept for?";
+		std::string text = "How long should  " + filename + " be kept for?";
 		const char* ff = text.c_str();
 
 		ImGui::Text(ff);
@@ -94,6 +128,9 @@ int main(int, char**)
 		if (ImGui::Button("3 Days")) keep_time = 24 * 3;
 		ImGui::SameLine();
 		if (ImGui::Button("7 Days")) keep_time = 24 * 7;
+		ImGui::SameLine();
+		if (ImGui::Button("Forever")) keep_time = 0;
+		if (ImGui::Button("Stop")) keep_time = -2;
 
 		ImGui::InputText("Input Text", buffer, 12340);
 		ImGui::TextWrapped(buffer);
@@ -119,15 +156,57 @@ int main(int, char**)
 		if(keep_time != -1) break;
 	}
 
-	std::cout << keep_time << std::endl;
-
 	// Cleanup
 	ImGui_ImplOpenGL2_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 
 	glfwDestroyWindow(window);
+
+	return keep_time;
+}
+
+// Main code
+int main(int, char**) {
+	pthread_mutex_init(&filenames_mutex, NULL);
+
+	pthread_t watcher;
+
+	int s = pthread_create(&watcher, NULL, watcher_thread, NULL);
+	if(s != 0) {
+		std::cerr << "Could not start watcher thread" << std::endl;
+		return -1;
+	}
+
+	glfwSetErrorCallback(glfw_error_callback);
+	if (!glfwInit())
+		return 1;
+
+	while(true) {
+		pthread_mutex_lock(&filenames_mutex);
+		if(filenames.size() > 0) {
+			std::string filename = filenames.front();
+			filenames.pop();
+
+			pthread_mutex_unlock(&filenames_mutex);
+			
+			int duration = get_file_duration(filename);
+			std::cout << duration << std::endl;
+
+			if(duration == -2) break;
+
+		} else {
+			pthread_mutex_unlock(&filenames_mutex);
+		}
+
+		usleep(1000);
+	}
+
 	glfwTerminate();
+
+	pthread_cancel(watcher);
+
+	usleep(1000000);
 
 	return 0;
 }

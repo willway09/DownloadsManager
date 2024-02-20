@@ -88,11 +88,11 @@ int get_file_duration(std::string filename) {
 	io.Fonts->AddFontFromFileTTF("imgui/misc/fonts/Roboto-Medium.ttf", 15.0f, &cfg0, ranges);
 
 	// Load a secondary emoji font
-	static ImFontConfig cfg1;
+	/*static ImFontConfig cfg1;
 	cfg1.OversampleH = cfg1.OversampleV = 1;
 	cfg1.MergeMode = true;
 	cfg1.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags_LoadColor; // Need to enable to render emojis
-	io.Fonts->AddFontFromFileTTF("/usr/share/fonts/WindowsFonts/seguiemj.ttf", 15.0f, &cfg1, ranges);
+	io.Fonts->AddFontFromFileTTF("/usr/share/fonts/noto/NotoColorEmoji.ttf", 15.0f, &cfg1, ranges);*/
 
 	// Our state
 	bool show_demo_window = true;
